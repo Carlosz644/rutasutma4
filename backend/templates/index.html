@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>IA Rutas — Monitor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=TU_API_KEY&libraries=geometry"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+    }
+    #map {
+      width: 100%;
+      height: 100vh;
+    }
+    #status {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      z-index: 1000;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+  <div id="status">📡 Esperando señal GPS...</div>
+
+  <script>
+    const socket = io("http://localhost:8000"); // Ajusta si usas dominio o puerto diferente
+
+    let map;
+    let gpsMarker;
+    let routePolyline;
+    let routeMarkers = [];
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 22.0, lng: -102.29 },
+        zoom: 14,
+      });
+    }
+
+    window.onload = initMap;
+
+    socket.on("route", (data) => {
+      if (routePolyline) routePolyline.setMap(null);
+      routeMarkers.forEach((m) => m.setMap(null));
+      routeMarkers = [];
+
+      const geom = data.ruta_geom.map(p => ({ lat: p.lat, lng: p.lng }));
+      const logica = data.ruta_logica.map(p => ({ lat: p.lat, lng: p.lng }));
+
+      routePolyline = new google.maps.Polyline({
+        path: geom,
+        strokeColor: "#0000FF",
+        strokeWeight: 4,
+        map: map,
+      });
+
+      logica.forEach((p, i) => {
+        const marker = new google.maps.Marker({
+          position: p,
+          map: map,
+          label: i === 0 ? "Inicio" : `Entrega ${i}`,
+        });
+        routeMarkers.push(marker);
+      });
+
+      if (geom.length > 0) {
+        const bounds = new google.maps.LatLngBounds();
+        geom.forEach(p => bounds.extend(p));
+        map.fitBounds(bounds);
+      }
+    });
+
+    socket.on("position", (data) => {
+      const { lat, lng } = data;
+      const pos = { lat, lng };
+
+      if (!gpsMarker) {
+        gpsMarker = new google.maps.Marker({
+          position: pos,
+          map: map,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: "#f03",
+            fillOpacity: 0.8,
+            strokeColor: "red",
+          },
+          title: "Repartidor en tiempo real",
+        });
+        map.setCenter(pos);
+        map.setZoom(17);
+      } else {
+        gpsMarker.setPosition(pos);
+      }
+
+      document.getElementById("status").textContent =
+        `🛰️ Posición actual: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    });
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          fetch("http://localhost:8000/push_gps", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat: latitude, lon: longitude })
+          }).catch((err) => console.error("Error al enviar GPS:", err));
+        },
+        (err) => {
+          console.warn("Error de geolocalización:", err.message);
+          document.getElementById("status").textContent =
+            "⚠️ No se pudo obtener ubicación. Revisa permisos.";
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+      );
+    } else {
+      alert("Tu navegador no admite geolocalización.");
+    }
+  </script>
+</body>
+</html>
