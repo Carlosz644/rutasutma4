@@ -1,47 +1,66 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session, joinedload
 from typing import List
-from backend.database import get_db
-from backend import crud, schemas 
 
-# Define el router
+from database import get_db
+import crud
+import schemas
+import models
+from pydantic import BaseModel
+
 router = APIRouter(prefix="/rutas", tags=["Rutas"])
 
-# --- ENDPOINTS CRUD BÁSICOS ---
 
-# Endpoint GET para leer todas las rutas (Usa DB y CRUD)
+# ======================================
+# GET – LISTAR RUTAS (conductor + vehículo)
+# ======================================
 @router.get("/", response_model=List[schemas.Ruta])
-def listar_rutas_endpoint(
-    skip: int = 0, 
-    limit: int = 100, 
-    db: Session = Depends(get_db)
-):
-    """
-    Lista todas las rutas de entrega registradas en la base de datos.
-    """
-    rutas = crud.get_rutas(db, skip=skip, limit=limit)
+def listar_rutas(db: Session = Depends(get_db)):
+    rutas = db.query(models.Ruta)\
+        .options(
+            joinedload(models.Ruta.conductor),
+            joinedload(models.Ruta.vehiculo)
+        ).all()
+
     return rutas
 
-# --- ENDPOINT DE OPTIMIZACIÓN CENTRAL ---
 
-class ClienteIDs(schemas.BaseModel):
-    """Esquema de entrada para el endpoint de optimización."""
+# ======================================
+# POST – CREAR RUTA
+# ======================================
+@router.post("/", response_model=schemas.Ruta)
+def crear_ruta(ruta: schemas.RutaCreate, db: Session = Depends(get_db)):
+    return crud.crear_ruta(db, ruta)
+
+
+# ======================================
+# PUT – ACTUALIZAR RUTA
+# ======================================
+@router.put("/{id_ruta}", response_model=schemas.Ruta)
+def actualizar_ruta(id_ruta: int, ruta: schemas.RutaBase, db: Session = Depends(get_db)):
+    actualizada = crud.update_ruta(db, id_ruta, ruta)
+    if not actualizada:
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+    return actualizada
+
+
+# ======================================
+# DELETE – ELIMINAR RUTA
+# ======================================
+@router.delete("/{id_ruta}", response_model=schemas.Ruta)
+def eliminar_ruta(id_ruta: int, db: Session = Depends(get_db)):
+    eliminada = crud.delete_ruta(db, id_ruta)
+    if not eliminada:
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+    return eliminada
+
+
+# ======================================
+# POST – OPTIMIZAR RUTA
+# ======================================
+class ClienteIDs(BaseModel):
     cliente_ids: List[int]
-    # Opcional: Podrías añadir aquí el ID de la ruta o del conductor si fuera necesario
 
-@router.post(
-    "/optimizar", 
-    response_model=List[schemas.ResultadoRutaOptimizada]
-)
-def optimizar_ruta_endpoint(
-    cliente_ids_body: ClienteIDs, 
-    db: Session = Depends(get_db)
-):
-    """
-    Calcula el orden óptimo de visita para una lista de clientes (simulación TSP).
-    """
-    # Llama a la función de simulación de optimización en CRUD
-    ruta_optimizada = crud.mock_optimize_route(db, cliente_ids_body.cliente_ids)
-    
-    # Nota: Aquí es donde en el futuro se llamará al algoritmo TSP real.
-    return ruta_optimizada
+@router.post("/optimizar", response_model=List[schemas.ResultadoRutaOptimizada])
+def optimizar_ruta(body: ClienteIDs, db: Session = Depends(get_db)):
+    return crud.mock_optimize_route(db, body.cliente_ids)

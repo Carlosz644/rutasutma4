@@ -1,4 +1,4 @@
-from backend.src.services.utils import get
+from src.services.utils import get
 
 def get_route(origin: str, destination: str):
     url = "https://maps.googleapis.com/maps/api/directions/json"

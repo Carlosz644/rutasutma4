@@ -1,4 +1,4 @@
-from backend.src.services.utils import post
+from src.services.utils import get
 from polyline import decode  # ✅ Agregado para decodificar geometría
 
 def optimize_route(locations: list):

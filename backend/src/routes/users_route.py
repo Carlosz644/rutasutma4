@@ -2,9 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 
-from backend.database import get_db
-from backend import crud, schemas
-from backend.auth import require_roles
+from database import get_db
+import crud
+import schemas
+from auth import (
+    require_roles,
+    verify_password,
+    hash_password,
+    get_current_user
+)
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
@@ -42,14 +48,13 @@ def obtener_usuario(
 def crear_usuario(
     usuario: schemas.UsuarioCreate,
     db: Session = Depends(get_db),
-    user=Depends(require_roles(["super_admin"]))   # 🔐 Protegido
+    user=Depends(require_roles(["super_admin"]))
 ):
 
     existente = crud.get_usuario_por_correo(db, usuario.correo)
     if existente:
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
 
-    from backend.auth import hash_password
     password_hash = hash_password(usuario.password)
 
     nuevo_usuario = crud.create_usuario(db, usuario, password_hash)
@@ -64,7 +69,7 @@ def actualizar_usuario(
     id_usuario: int,
     usuario: schemas.UsuarioBase,
     db: Session = Depends(get_db),
-    user=Depends(require_roles(["super_admin"]))   # 🔐 Protegido
+    user=Depends(require_roles(["super_admin"]))
 ):
     actualizado = crud.update_usuario(db, id_usuario, usuario)
     if not actualizado:
@@ -79,15 +84,17 @@ def actualizar_usuario(
 def eliminar_usuario(
     id_usuario: int,
     db: Session = Depends(get_db),
-    user=Depends(require_roles(["super_admin"]))   # 🔐 Protegido
+    user=Depends(require_roles(["super_admin"]))
 ):
     eliminado = crud.delete_usuario(db, id_usuario)
     if not eliminado:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return eliminado
 
-from backend.auth import verify_password, hash_password, require_roles
 
+# ======================================================
+# Cambiar password de otro usuario (admin)
+# ======================================================
 @router.put(
     "/{id_usuario}/cambiar_password",
     dependencies=[Depends(require_roles(["super_admin"]))],
@@ -102,41 +109,32 @@ def cambiar_password_admin(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-    # Validación: confirmar contraseña nueva
     if data.password_nueva != data.confirmar_nueva:
         raise HTTPException(status_code=400, detail="Las contraseñas no coinciden")
 
-    # Generar nuevo hash
     nuevo_hash = hash_password(data.password_nueva)
-
     actualizado = crud.cambiar_password(db, id_usuario, nuevo_hash)
+
     return {"mensaje": "Contraseña actualizada correctamente", "usuario": actualizado}
 
-from backend.auth import get_current_user
 
-@router.put(
-    "/cambiar_mi_password",
-    tags=["Usuarios"]
-)
+# ======================================================
+# Cambiar mi contraseña (usuario logueado)
+# ======================================================
+@router.put("/cambiar_mi_password", tags=["Usuarios"])
 def cambiar_mi_password(
     data: schemas.CambiarPassword,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user=Depends(get_current_user)
 ):
 
-    # Validar contraseña actual
     if not verify_password(data.password_actual, current_user.password_hash):
         raise HTTPException(status_code=400, detail="La contraseña actual es incorrecta")
 
-    # Validación confirmación
     if data.password_nueva != data.confirmar_nueva:
         raise HTTPException(status_code=400, detail="Las contraseñas no coinciden")
 
-    # Hash nuevo
     nuevo_hash = hash_password(data.password_nueva)
-
-    actualizado = crud.cambiar_password(db, current_user.id_usuario, nuevo_hash)
+    crud.cambiar_password(db, current_user.id_usuario, nuevo_hash)
 
     return {"mensaje": "Tu contraseña ha sido actualizada correctamente"}
-
-

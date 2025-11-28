@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import os
 
-from backend.database import get_db
-from backend.auth import hash_password
-from backend import crud
+from database import get_db          # ← CORRECTO
+from auth import hash_password       # ← CORRECTO
+import crud                          # ← ESTO SÍ SE CAMBIA
 
 router = APIRouter(prefix="/system", tags=["Sistema"])
 

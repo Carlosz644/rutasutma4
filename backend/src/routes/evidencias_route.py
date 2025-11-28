@@ -3,8 +3,10 @@ import shutil
 import uuid
 from sqlalchemy.orm import Session
 
-from backend.database import get_db
-from backend import crud, schemas
+# ---- IMPORTACIONES CORRECTAS ----
+from database import get_db
+import crud
+import schemas
 
 router = APIRouter(prefix="/evidencias", tags=["Evidencias"])
 

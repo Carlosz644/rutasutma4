@@ -1,4 +1,4 @@
-from backend.src.services.utils import get
+from src.services.utils import get
 
 def get_distance_matrix(origins: list, destinations: list):
     url = "https://maps.googleapis.com/maps/api/distancematrix/json"

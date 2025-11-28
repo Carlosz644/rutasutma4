@@ -2,14 +2,15 @@ from __future__ import annotations
 from sqlalchemy import Column, Integer, String, DECIMAL, ForeignKey, Date, Time, Text, Enum, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from datetime import datetime
 import enum
 
-from backend.database import Base 
+from database import Base
 
 
-# ============================================
+# =====================================================
 # ENUMS
-# ============================================
+# =====================================================
 
 class EstadoEntrega(str, enum.Enum):
     pendiente = "pendiente"
@@ -24,9 +25,9 @@ class RolUsuario(str, enum.Enum):
     repartidor = "repartidor"
 
 
-# ============================================
+# =====================================================
 # 1. CLIENTES
-# ============================================
+# =====================================================
 
 class Cliente(Base):
     __tablename__ = "clientes"
@@ -39,12 +40,13 @@ class Cliente(Base):
     latitud = Column(DECIMAL(10, 7))
     longitud = Column(DECIMAL(10, 7))
 
-    entregas = relationship("Entrega", back_populates="cliente")
+    # NO cargar relaciones automáticamente → evita datos mezclados
+    entregas = relationship("Entrega", back_populates="cliente", lazy="noload")
 
 
-# ============================================
+# =====================================================
 # 2. CONDUCTORES
-# ============================================
+# =====================================================
 
 class Conductor(Base):
     __tablename__ = "conductores"
@@ -54,12 +56,14 @@ class Conductor(Base):
     telefono = Column(String(20))
     licencia = Column(String(50))
 
-    rutas = relationship("Ruta", back_populates="conductor")
+    # MUY IMPORTANTE:
+    # No queremos rutas dentro de conductores en el frontend
+    rutas = relationship("Ruta", back_populates="conductor", lazy="noload")
 
 
-# ============================================
+# =====================================================
 # 3. VEHÍCULOS
-# ============================================
+# =====================================================
 
 class Vehiculo(Base):
     __tablename__ = "vehiculos"
@@ -70,12 +74,13 @@ class Vehiculo(Base):
     placas = Column(String(20))
     capacidad = Column(Integer)
 
-    rutas = relationship("Ruta", back_populates="vehiculo")
+    # Igualmente, no queremos rutas dentro de vehículos
+    rutas = relationship("Ruta", back_populates="vehiculo", lazy="noload")
 
 
-# ============================================
+# =====================================================
 # 4. RUTAS
-# ============================================
+# =====================================================
 
 class Ruta(Base):
     __tablename__ = "rutas"
@@ -86,14 +91,17 @@ class Ruta(Base):
     id_vehiculo = Column(Integer, ForeignKey("vehiculos.id_vehiculo"))
     fecha = Column(Date)
 
-    conductor = relationship("Conductor", back_populates="rutas")
-    vehiculo = relationship("Vehiculo", back_populates="rutas")
-    entregas = relationship("Entrega", back_populates="ruta")
+    # Estas SÍ deben venir al frontend → se cargan con lazy="joined"
+    conductor = relationship("Conductor", back_populates="rutas", lazy="joined")
+    vehiculo = relationship("Vehiculo", back_populates="rutas", lazy="joined")
+
+    # Las entregas generalmente NO se deben cargar
+    entregas = relationship("Entrega", back_populates="ruta", lazy="noload")
 
 
-# ============================================
+# =====================================================
 # 5. ENTREGAS
-# ============================================
+# =====================================================
 
 class Entrega(Base):
     __tablename__ = "entregas"
@@ -106,15 +114,15 @@ class Entrega(Base):
     hora_entrega = Column(Time)
     observaciones = Column(Text)
 
-    ruta = relationship("Ruta", back_populates="entregas")
-    cliente = relationship("Cliente", back_populates="entregas")
-    paquetes = relationship("Paquete", back_populates="entrega")
-    seguimientos = relationship("Seguimiento", back_populates="entrega")
+    ruta = relationship("Ruta", back_populates="entregas", lazy="joined")
+    cliente = relationship("Cliente", back_populates="entregas", lazy="joined")
+    paquetes = relationship("Paquete", back_populates="entrega", lazy="noload")
+    seguimientos = relationship("Seguimiento", back_populates="entrega", lazy="noload")
 
 
-# ============================================
+# =====================================================
 # 6. PAQUETES
-# ============================================
+# =====================================================
 
 class Paquete(Base):
     __tablename__ = "paquetes"
@@ -125,12 +133,12 @@ class Paquete(Base):
     peso = Column(DECIMAL(10, 2))
     valor = Column(DECIMAL(10, 2))
 
-    entrega = relationship("Entrega", back_populates="paquetes")
+    entrega = relationship("Entrega", back_populates="paquetes", lazy="joined")
 
 
-# ============================================
+# =====================================================
 # 7. SEGUIMIENTO
-# ============================================
+# =====================================================
 
 class Seguimiento(Base):
     __tablename__ = "seguimiento"
@@ -141,12 +149,12 @@ class Seguimiento(Base):
     estado = Column(Enum(EstadoEntrega))
     comentario = Column(Text)
 
-    entrega = relationship("Entrega", back_populates="seguimientos")
+    entrega = relationship("Entrega", back_populates="seguimientos", lazy="joined")
 
 
-# ============================================
+# =====================================================
 # 8. USUARIOS
-# ============================================
+# =====================================================
 
 class Usuario(Base):
     __tablename__ = "usuarios"
@@ -159,14 +167,18 @@ class Usuario(Base):
     activo = Column(Integer, default=1, nullable=False)
     creado_en = Column(DateTime, default=func.now())
 
-class EvidenciaEntrega(Base):
+
+# =====================================================
+# 9. EVIDENCIAS
+# =====================================================
+
+class Evidencia(Base):
     __tablename__ = "evidencias_entrega"
 
     id_evidencia = Column(Integer, primary_key=True, index=True)
-    id_entrega = Column(Integer, ForeignKey("entregas.id_entrega"))
-    url_foto = Column(String(500))
-    tipo = Column(Enum("entrega", "documento", "cliente", "otro", name="tipo_evidencia"))
+    id_entrega = Column(Integer, ForeignKey("entregas.id_entrega"), nullable=False)
+    url_foto = Column(String(500), nullable=False)
+    tipo = Column(Enum("entrega", "documento", "cliente", "otro"), default="entrega")
     fecha_subida = Column(DateTime, default=datetime.utcnow)
 
-    entrega = relationship("Entrega")
-
+    entrega = relationship("Entrega", lazy="joined")

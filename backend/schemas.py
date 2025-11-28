@@ -1,10 +1,11 @@
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, EmailStr
 from datetime import date, time, datetime
 from typing import List, Optional
 import enum
 
+
 # ============================================
-# ENUMS COMPARTIDOS
+# ENUMS
 # ============================================
 
 class EstadoEntrega(str, enum.Enum):
@@ -14,12 +15,18 @@ class EstadoEntrega(str, enum.Enum):
     retrasado = "retrasado"
 
 
+class RolUsuario(str, enum.Enum):
+    super_admin = "super_admin"
+    admin = "admin"
+    repartidor = "repartidor"
+
+
 # ============================================
-# 1. SCHEMAS BASE (CREACIÓN/ACTUALIZACIÓN)
+# 1. BASE MODELS
 # ============================================
 
 class ClienteBase(BaseModel):
-    nombre: str = Field(..., description="Nombre completo o razón social del cliente.")
+    nombre: str
     direccion: Optional[str] = None
     telefono: Optional[str] = None
     correo: Optional[str] = None
@@ -70,50 +77,70 @@ class SeguimientoBase(BaseModel):
 
 
 # ============================================
-# 2. SCHEMAS COMPLETOS (RESPUESTA API)
+# 2. MODELOS COMPLETOS PARA RESPUESTA
 # ============================================
 
 class Cliente(ClienteBase):
     id_cliente: int
-
     class Config:
         from_attributes = True
 
 
 class Conductor(ConductorBase):
     id_conductor: int
-
     class Config:
         from_attributes = True
 
 
 class Vehiculo(VehiculoBase):
     id_vehiculo: int
-
     class Config:
         from_attributes = True
 
 
-class Ruta(RutaBase):
+# ============================================
+# RELACIONES PARA RUTA
+# ============================================
+
+class RutaConductor(BaseModel):
+    id_conductor: int
+    nombre: str
+    class Config:
+        from_attributes = True
+
+
+class RutaVehiculo(BaseModel):
+    id_vehiculo: int
+    marca: str
+    modelo: str
+    class Config:
+        from_attributes = True
+
+
+class Ruta(BaseModel):
     id_ruta: int
+    nombre_ruta: str
+    fecha: date
+
+    conductor: Optional[RutaConductor]
+    vehiculo: Optional[RutaVehiculo]
 
     class Config:
         from_attributes = True
-        json_encoders = {
-            date: lambda v: v.isoformat() if v else None,
-        }
 
+
+# ============================================
+# ENTREGAS
+# ============================================
 
 class Entrega(EntregaBase):
     id_entrega: int
-
     class Config:
         from_attributes = True
 
 
 class Paquete(PaqueteBase):
     id_paquete: int
-
     class Config:
         from_attributes = True
 
@@ -121,13 +148,12 @@ class Paquete(PaqueteBase):
 class Seguimiento(SeguimientoBase):
     id_seguimiento: int
     fecha: datetime
-
     class Config:
         from_attributes = True
 
 
 # ============================================
-# 3. SCHEMAS PARA OPTIMIZACIÓN
+# 3. OPTIMIZACIÓN DE RUTAS
 # ============================================
 
 class ResultadoRutaOptimizada(BaseModel):
@@ -143,18 +169,12 @@ class ResultadoRutaOptimizada(BaseModel):
 
 
 class ListaClientesOptimizar(BaseModel):
-    cliente_ids: List[int] = Field(..., description="Lista de IDs de clientes a visitar.")
+    cliente_ids: List[int]
 
 
 # ============================================
-# 4. SCHEMAS DE USUARIOS (ROLES Y AUTENTICACIÓN)
+# 4. USUARIOS Y LOGIN
 # ============================================
-
-class RolUsuario(str, enum.Enum):
-    super_admin = "super_admin"
-    admin = "admin"
-    repartidor = "repartidor"
-
 
 class UsuarioBase(BaseModel):
     nombre: str
@@ -178,20 +198,35 @@ class Usuario(BaseModel):
     class Config:
         from_attributes = True
 
+
 class CambiarPassword(BaseModel):
     password_actual: str
     password_nueva: str
     confirmar_nueva: str
+
+
+# ============================================
+# 5. EVIDENCIAS
+# ============================================
 
 class EvidenciaBase(BaseModel):
     id_entrega: int
     url_foto: str
     tipo: str = "entrega"
 
+
 class Evidencia(EvidenciaBase):
     id_evidencia: int
     fecha_subida: datetime
-
     class Config:
-        orm_mode = True
+        from_attributes = True
 
+
+# ============================================
+# 6. CREAR RUTA DESDE FRONTEND
+# ============================================
+
+class RutaCreate(BaseModel):
+    nombre_ruta: str
+    id_conductor: int
+    id_vehiculo: int

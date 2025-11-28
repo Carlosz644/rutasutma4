@@ -1,63 +1,91 @@
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+
+# ============================
+# 1. Importaciones de Rutas
+# ============================
+
+# 🚨 CAMBIO IMPORTANTE:
+# Ya NO uses: from backend.src.routes...
+# Debe ser:   from src.routes...
+
+from src.routes.rutas_route import router as rutas_router
+from src.routes.geocode_route import router as geocode_router
+from src.routes.directions_route import router as directions_router
+from src.routes.matrix_route import router as matrix_router
+from src.routes.optimize_route import router as optimize_router
+from src.routes.users_route import router as users_router
+from src.routes.clientes_route import router as clientes_router
+from src.routes.conductores_route import router as conductores_router
+from src.routes.vehiculos_route import router as vehiculos_router
+from src.routes.rutas_sql_route import router as rutas_sql_router
+from src.routes.entregas_route import router as entregas_router
+from src.routes.paquetes_route import router as paquetes_router
+from src.routes.seguimiento_route import router as seguimiento_router
+from src.routes.login_route import router as login_router
+from src.routes.system_route import router as system_router
+from src.routes.evidencias_route import router as evidencias_router
 
 
-# --- 1. Importaciones de Rutas (Tus rutas de negocio) ---
-from backend.src.routes.rutas_route import router as rutas_router
-from backend.src.routes.geocode_route import router as geocode_router
-from backend.src.routes.directions_route import router as directions_router
-from backend.src.routes.matrix_route import router as matrix_router
-from backend.src.routes.optimize_route import router as optimize_router
-from backend.src.routes.users_route import router as users_router
-from backend.src.routes.clientes_route import router as clientes_router
-from backend.src.routes.conductores_route import router as conductores_router
-from backend.src.routes.vehiculos_route import router as vehiculos_router
-from backend.src.routes.rutas_sql_route import router as rutas_sql_router
-from backend.src.routes.entregas_route import router as entregas_router
-from backend.src.routes.paquetes_route import router as paquetes_router
-from backend.src.routes.seguimiento_route import router as seguimiento_router
-from backend.src.routes.login_route import router as login_router
-from backend.src.routes.system_route import router as system_router
-from backend.src.routes.evidencias_route import router as evidencias_router
+# ============================
+# 2. Base de datos
+# ============================
 
+# Cambia ".database" por "database" porque estás dentro de backend/
+from database import SessionLocal, engine
+from importlib import import_module
+import models  # importa los modelos ORM
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-# --- 2. Importaciones de Base de Datos y Modelos (LÓGICA SQL/DB VERIFICADA) ---
-# Importa la Sesión y el Engine desde .database
-from .database import SessionLocal, engine
-# Importa los modelos ORM 
-from . import models 
-
-# --- 3. Inicialización de la Base de Datos (LÓGICA SQL/DB VERIFICADA) ---
-# Crea las tablas definidas en models.py si aún no existen en MySQL (ejecutar UNA vez)
+# Crear tablas si no existen
 models.Base.metadata.create_all(bind=engine)
 
-# --- 4. Inicialización de la Aplicación FastAPI (UNA SOLA VEZ) ---
+
+# ============================
+# 3. App FastAPI
+# ============================
+
 app = FastAPI(title="API de Rutas de Entrega Optimizada")
 
-# --- 5. Dependencia para Obtener la Sesión de Base de Datos (LÓGICA SQL/DB VERIFICADA) ---
+
+# ============================
+# 4. CORS
+# ============================
+
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+]
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ============================
+# 5. DB Dependency
+# ============================
+
 def get_db():
-    """Generador que proporciona una sesión de base de datos y asegura su cierre."""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
-# --- 6. Registro de Rutas (Tus routers de negocio) ---
+
+# ============================
+# 6. Registro de Rutas
+# ============================
+
 app.include_router(rutas_router)
 app.include_router(geocode_router)
 app.include_router(directions_router)
@@ -74,13 +102,9 @@ app.include_router(seguimiento_router)
 app.include_router(login_router)
 app.include_router(system_router)
 app.include_router(evidencias_router)
-app.mount("/uploads", StaticFiles(directory="backend/uploads"), name="uploads")
 
-
-
-
-
-
+# CORRECCIÓN: elimina "backend/uploads"
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
 

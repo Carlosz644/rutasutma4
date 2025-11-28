@@ -2,8 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 
-from backend.database import get_db
-from backend import crud, schemas
+# ---- IMPORTACIONES CORRECTAS ----
+from database import get_db
+import crud
+import schemas
 
 router = APIRouter(prefix="/paquetes", tags=["Paquetes"])
 
