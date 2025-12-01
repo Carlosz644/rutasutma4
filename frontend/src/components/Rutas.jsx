@@ -1,49 +1,93 @@
 // frontend/src/components/Rutas.jsx
-import { useState, useEffect } from "react";
-import { Edit2, Trash2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Edit2, Trash2, MapPin } from "lucide-react";
+import { GoogleMap, Marker, useJsApiLoader } from "@react-google-maps/api";
+
 import {
   getRutas,
   createRuta,
   updateRuta,
   deleteRuta,
 } from "../api/rutas";
-import { getConductores } from "../api/conductores";
-import { getVehiculos } from "../api/vehiculos";
 
-export default function Rutas() {
+import { getVehiculos } from "../api/vehiculos";
+import { getEntregasPorRuta } from "../api/entregas";
+
+export default function Rutas({ userId, userRole }) {
   const [rutas, setRutas] = useState([]);
-  const [conductores, setConductores] = useState([]);
   const [vehiculos, setVehiculos] = useState([]);
 
-  // formulario de creación
+  // Formulario crear ruta
   const [formData, setFormData] = useState({
     nombre_ruta: "",
-    id_conductor: "",
     id_vehiculo: "",
   });
 
-  // edición
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({
     nombre_ruta: "",
-    id_conductor: "",
     id_vehiculo: "",
     fecha: "",
   });
 
+  // MAPA
+  const [rutaSeleccionada, setRutaSeleccionada] = useState(null);
+  const [paradas, setParadas] = useState([]);
+
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+  });
+
+  // Centro del mapa
+  const center = useMemo(() => {
+    if (paradas.length > 0) {
+      const c = paradas[0].cliente;
+      return {
+        lat: Number(c.latitud),
+        lng: Number(c.longitud),
+      };
+    }
+    return { lat: 21.8853, lng: -102.2916 }; // Default Aguascalientes
+  }, [paradas]);
+
+  // =========================
+  // CARGAR DATOS
+  // =========================
   useEffect(() => {
     cargarDatos();
   }, []);
 
   const cargarDatos = async () => {
-    const [r, c, v] = await Promise.all([
-      getRutas(),
-      getConductores(),
-      getVehiculos(),
-    ]);
-    setRutas(r);
-    setConductores(c);
-    setVehiculos(v);
+    try {
+      const [r, v] = await Promise.all([
+        getRutas(),
+        getVehiculos(),
+      ]);
+
+      const rutasFiltradas =
+        userRole === "repartidor"
+          ? r.filter((ruta) => ruta.id_repartidor === userId)
+          : r;
+
+      setRutas(rutasFiltradas);
+      setVehiculos(v);
+    } catch (err) {
+      console.error("Error cargando datos:", err);
+    }
+  };
+
+  // =========================
+  // CARGAR SOLO MARCADORES
+  // =========================
+  const cargarParadasRuta = async (ruta) => {
+    try {
+      setRutaSeleccionada(ruta);
+      const entregas = await getEntregasPorRuta(ruta.id_ruta);
+      setParadas(entregas || []);
+    } catch (err) {
+      console.error("Error:", err);
+      setParadas([]);
+    }
   };
 
   // =========================
@@ -52,59 +96,56 @@ export default function Rutas() {
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
 
+    const user = JSON.parse(localStorage.getItem("currentUser"));
+
     const data = {
       nombre_ruta: formData.nombre_ruta,
-      id_conductor: parseInt(formData.id_conductor),
-      id_vehiculo: parseInt(formData.id_vehiculo),
+      id_repartidor: user.id,
+      id_vehiculo: formData.id_vehiculo ? parseInt(formData.id_vehiculo) : null,
+      fecha: new Date().toISOString().slice(0, 10),
+      id_creador: user.id,
     };
 
     try {
       await createRuta(data);
-      alert("✅ Ruta creada");
-      setFormData({ nombre_ruta: "", id_conductor: "", id_vehiculo: "" });
+      alert("Ruta creada");
+      setFormData({ nombre_ruta: "", id_vehiculo: "" });
       cargarDatos();
     } catch (err) {
       console.error(err);
-      alert("❌ Error al crear ruta");
+      alert("Error al crear ruta");
     }
   };
 
   // =========================
-  // PREPARAR EDICIÓN
+  // EDITAR
   // =========================
   const handleEditClick = (ruta) => {
     setEditingId(ruta.id_ruta);
     setEditForm({
       nombre_ruta: ruta.nombre_ruta,
-      id_conductor: ruta.id_conductor,
-      id_vehiculo: ruta.id_vehiculo,
-      // la fecha viene como "2025-11-28"
-      fecha: ruta.fecha || "",
+      id_vehiculo: ruta.vehiculo?.id_vehiculo || "",
+      fecha: ruta.fecha,
     });
   };
 
-  // =========================
-  // GUARDAR EDICIÓN
-  // =========================
   const handleEditSubmit = async (e) => {
     e.preventDefault();
-    if (!editingId) return;
 
     const data = {
       nombre_ruta: editForm.nombre_ruta,
-      id_conductor: parseInt(editForm.id_conductor),
-      id_vehiculo: parseInt(editForm.id_vehiculo),
-      fecha: editForm.fecha || new Date().toISOString().slice(0, 10),
+      id_repartidor: rutas.find((r) => r.id_ruta === editingId)?.id_repartidor,
+      id_vehiculo: editForm.id_vehiculo ? parseInt(editForm.id_vehiculo) : null,
+      fecha: editForm.fecha,
     };
 
     try {
       await updateRuta(editingId, data);
-      alert("✅ Ruta actualizada");
+      alert("Ruta actualizada");
       setEditingId(null);
       cargarDatos();
-    } catch (err) {
-      console.error(err);
-      alert("❌ Error al actualizar ruta");
+    } catch {
+      alert("Error al actualizar");
     }
   };
 
@@ -112,209 +153,154 @@ export default function Rutas() {
   // ELIMINAR
   // =========================
   const handleDelete = async (id_ruta) => {
-    if (!window.confirm("¿Eliminar esta ruta?")) return;
-
+    if (!confirm("¿Eliminar ruta?")) return;
     try {
       await deleteRuta(id_ruta);
-      alert("✅ Ruta eliminada");
+      alert("Ruta eliminada");
       cargarDatos();
-    } catch (err) {
-      console.error(err);
-      alert("❌ Error al eliminar ruta");
+    } catch {
+      alert("Error");
     }
   };
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-6">Rutas</h2>
+    <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* IZQUIERDA: CRUD */}
+      <div>
+        <h2 className="text-2xl font-bold mb-6">Rutas</h2>
 
-      {/* FORMULARIO CREAR */}
-      <div className="bg-white p-4 border-2 border-black shadow mb-6">
-        <h3 className="text-lg font-bold mb-3">Crear Nueva Ruta</h3>
+        {/* Crear solo si NO es repartidor */}
+        {userRole !== "repartidor" && (
+          <div className="bg-white p-4 border-2 border-black shadow mb-6">
+            <h3 className="text-lg font-bold mb-3">Crear Ruta</h3>
 
-        <form onSubmit={handleCreateSubmit} className="grid grid-cols-3 gap-4">
-          <input
-            type="text"
-            placeholder="Nombre de la ruta"
-            className="border p-2"
-            value={formData.nombre_ruta}
-            onChange={(e) =>
-              setFormData({ ...formData, nombre_ruta: e.target.value })
-            }
-            required
-          />
+            <form onSubmit={handleCreateSubmit} className="grid grid-cols-3 gap-4">
+              <input
+                type="text"
+                placeholder="Nombre de ruta"
+                className="border p-2 col-span-3"
+                value={formData.nombre_ruta}
+                onChange={(e) =>
+                  setFormData({ ...formData, nombre_ruta: e.target.value })
+                }
+                required
+              />
 
-          <select
-            className="border p-2"
-            value={formData.id_conductor}
-            onChange={(e) =>
-              setFormData({ ...formData, id_conductor: e.target.value })
-            }
-            required
-          >
-            <option value="">Selecciona Conductor</option>
-            {conductores.map((c) => (
-              <option key={c.id_conductor} value={c.id_conductor}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
+              <select
+                className="border p-2 col-span-3"
+                value={formData.id_vehiculo}
+                onChange={(e) =>
+                  setFormData({ ...formData, id_vehiculo: e.target.value })
+                }
+              >
+                <option value="">Vehículo</option>
+                {vehiculos.map((v) => (
+                  <option key={v.id_vehiculo} value={v.id_vehiculo}>
+                    {v.marca} {v.modelo}
+                  </option>
+                ))}
+              </select>
 
-          <select
-            className="border p-2"
-            value={formData.id_vehiculo}
-            onChange={(e) =>
-              setFormData({ ...formData, id_vehiculo: e.target.value })
-            }
-            required
-          >
-            <option value="">Selecciona Vehículo</option>
-            {vehiculos.map((v) => (
-              <option key={v.id_vehiculo} value={v.id_vehiculo}>
-                {v.marca} {v.modelo}
-              </option>
-            ))}
-          </select>
+              <button className="col-span-3 bg-black text-white px-4 py-2">
+                Crear Ruta
+              </button>
+            </form>
+          </div>
+        )}
 
-          <button
-            type="submit"
-            className="col-span-3 bg-black text-white px-4 py-2 mt-2"
-          >
-            Crear Ruta
-          </button>
-        </form>
+        {/* Tabla */}
+        <div className="bg-white p-4 border-2 border-black shadow">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gray-200 border-b-2 border-black">
+                <th className="p-3">ID</th>
+                <th className="p-3">Ruta</th>
+                <th className="p-3">Vehículo</th>
+                <th className="p-3">Fecha</th>
+                <th className="p-3 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rutas.map((r) => (
+                <tr key={r.id_ruta} className="border-b">
+                  <td className="p-3">{r.id_ruta}</td>
+                  <td className="p-3">{r.nombre_ruta}</td>
+                  <td className="p-3">
+                    {r.vehiculo
+                      ? `${r.vehiculo.marca} ${r.vehiculo.modelo}`
+                      : "Sin vehículo"}
+                  </td>
+                  <td className="p-3">{r.fecha}</td>
+                  <td className="p-3 text-center space-x-2">
+                    <button
+                      className="border-2 border-black px-2 py-1"
+                      onClick={() => cargarParadasRuta(r)}
+                    >
+                      <MapPin className="inline w-4 h-4" />
+                    </button>
+
+                    {userRole !== "repartidor" && (
+                      <>
+                        <button
+                          className="border-2 border-black px-2 py-1"
+                          onClick={() => handleEditClick(r)}
+                        >
+                          <Edit2 className="inline w-4 h-4" />
+                        </button>
+
+                        <button
+                          className="border-2 border-red-500 text-red-500 px-2 py-1"
+                          onClick={() => handleDelete(r.id_ruta)}
+                        >
+                          <Trash2 className="inline w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+
+              {rutas.length === 0 && (
+                <tr>
+                  <td className="p-3 text-center" colSpan={5}>
+                    No hay rutas.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* FORMULARIO EDICIÓN */}
-      {editingId && (
-        <div className="bg-yellow-50 p-4 border-2 border-black shadow mb-6">
-          <h3 className="text-lg font-bold mb-3">
-            Editar Ruta #{editingId}
-          </h3>
+      {/* DERECHA — MAPA */}
+      <div className="bg-white p-4 border-2 border-black shadow h-[600px] flex flex-col">
+        <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
+          <MapPin className="w-5 h-5" />
+          {rutaSeleccionada
+            ? `Mapa: ${rutaSeleccionada.nombre_ruta}`
+            : "Selecciona una ruta"}
+        </h3>
 
-          <form onSubmit={handleEditSubmit} className="grid grid-cols-4 gap-4">
-            <input
-              type="text"
-              className="border p-2"
-              value={editForm.nombre_ruta}
-              onChange={(e) =>
-                setEditForm({ ...editForm, nombre_ruta: e.target.value })
-              }
-              required
-            />
-
-            <select
-              className="border p-2"
-              value={editForm.id_conductor}
-              onChange={(e) =>
-                setEditForm({ ...editForm, id_conductor: e.target.value })
-              }
-              required
-            >
-              <option value="">Conductor</option>
-              {conductores.map((c) => (
-                <option key={c.id_conductor} value={c.id_conductor}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
-
-            <select
-              className="border p-2"
-              value={editForm.id_vehiculo}
-              onChange={(e) =>
-                setEditForm({ ...editForm, id_vehiculo: e.target.value })
-              }
-              required
-            >
-              <option value="">Vehículo</option>
-              {vehiculos.map((v) => (
-                <option key={v.id_vehiculo} value={v.id_vehiculo}>
-                  {v.marca} {v.modelo}
-                </option>
-              ))}
-            </select>
-
-            <input
-              type="date"
-              className="border p-2"
-              value={editForm.fecha}
-              onChange={(e) =>
-                setEditForm({ ...editForm, fecha: e.target.value })
-              }
-            />
-
-            <div className="col-span-4 flex gap-2">
-              <button
-                type="submit"
-                className="bg-black text-white px-4 py-2"
-              >
-                Guardar cambios
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditingId(null)}
-                className="border-2 border-black px-4 py-2"
-              >
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* TABLA RUTAS */}
-      <div className="bg-white p-4 border-2 border-black shadow">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-gray-200 border-b-2 border-black">
-              <th className="p-3">ID</th>
-              <th className="p-3">Ruta</th>
-              <th className="p-3">Conductor</th>
-              <th className="p-3">Vehículo</th>
-              <th className="p-3">Fecha</th>
-              <th className="p-3 text-center">Acciones</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {rutas.map((r) => (
-              <tr key={r.id_ruta} className="border-b">
-                <td className="p-3">{r.id_ruta}</td>
-                <td className="p-3">{r.nombre_ruta}</td>
-                <td className="p-3">{r.conductor?.nombre || "Sin conductor"}</td>
-                <td className="p-3">
-                  {r.vehiculo
-                    ? `${r.vehiculo.marca} ${r.vehiculo.modelo}`
-                    : "Sin vehículo"}
-                </td>
-                <td className="p-3">{r.fecha}</td>
-                <td className="p-3 text-center">
-                  <button
-                    className="border-2 border-black px-2 py-1 mr-2"
-                    onClick={() => handleEditClick(r)}
-                  >
-                    <Edit2 className="inline w-4 h-4" />
-                  </button>
-                  <button
-                    className="border-2 border-red-500 text-red-500 px-2 py-1"
-                    onClick={() => handleDelete(r.id_ruta)}
-                  >
-                    <Trash2 className="inline w-4 h-4" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-
-            {rutas.length === 0 && (
-              <tr>
-                <td className="p-3 text-center" colSpan={6}>
-                  No hay rutas registradas.
-                </td>
-              </tr>
+        {isLoaded && (
+          <GoogleMap
+            mapContainerStyle={{ width: "100%", height: "100%" }}
+            center={center}
+            zoom={paradas.length > 0 ? 13 : 12}
+          >
+            {/* SOLO MOSTRAR MARCADORES */}
+            {paradas.map((p) =>
+              p.cliente?.latitud && p.cliente?.longitud ? (
+                <Marker
+                  key={p.id_entrega}
+                  position={{
+                    lat: Number(p.cliente.latitud),
+                    lng: Number(p.cliente.longitud),
+                  }}
+                />
+              ) : null
             )}
-          </tbody>
-        </table>
+          </GoogleMap>
+        )}
       </div>
     </div>
   );

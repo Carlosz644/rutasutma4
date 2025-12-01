@@ -1,21 +1,21 @@
-import api from "./axios";
+import api from "./api";
 
 export async function getVehiculos() {
-  return (await api.get("/vehiculos/")).data;
-}
-
-export async function getVehiculo(id) {
-  return (await api.get(`/vehiculos/${id}`)).data;
+  const res = await api.get("/vehiculos/");
+  return res.data;
 }
 
 export async function createVehiculo(data) {
-  return (await api.post("/vehiculos/", data)).data;
+  const res = await api.post("/vehiculos/", data);
+  return res.data;
 }
 
 export async function updateVehiculo(id, data) {
-  return (await api.put(`/vehiculos/${id}`, data)).data;
+  const res = await api.put(`/vehiculos/${id}`, data);
+  return res.data;
 }
 
 export async function deleteVehiculo(id) {
-  return (await api.delete(`/vehiculos/${id}`)).data;
+  const res = await api.delete(`/vehiculos/${id}`);
+  return res.data;
 }

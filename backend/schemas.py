@@ -1,8 +1,7 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from datetime import date, time, datetime
-from typing import List, Optional
+from typing import Optional, List
 import enum
-
 
 # ============================================
 # ENUMS
@@ -10,9 +9,10 @@ import enum
 
 class EstadoEntrega(str, enum.Enum):
     pendiente = "pendiente"
-    en_camino = "en camino"
+    en_camino = "en_camino"
     entregado = "entregado"
     retrasado = "retrasado"
+    fallido = "fallido"
 
 
 class RolUsuario(str, enum.Enum):
@@ -22,7 +22,7 @@ class RolUsuario(str, enum.Enum):
 
 
 # ============================================
-# 1. BASE MODELS
+# CLIENTES
 # ============================================
 
 class ClienteBase(BaseModel):
@@ -34,152 +34,19 @@ class ClienteBase(BaseModel):
     longitud: Optional[float] = None
 
 
-class ConductorBase(BaseModel):
-    nombre: str
-    telefono: Optional[str] = None
-    licencia: Optional[str] = None
-
-
-class VehiculoBase(BaseModel):
-    marca: str
-    modelo: str
-    placas: str
-    capacidad: int
-
-
-class RutaBase(BaseModel):
-    nombre_ruta: str
-    id_conductor: int
-    id_vehiculo: int
-    fecha: date
-
-
-class EntregaBase(BaseModel):
-    id_ruta: int
-    id_cliente: int
-    estado: Optional[EstadoEntrega] = EstadoEntrega.pendiente
-    fecha_entrega: date
-    hora_entrega: time
-    observaciones: Optional[str] = None
-
-
-class PaqueteBase(BaseModel):
-    id_entrega: int
-    descripcion: Optional[str] = None
-    peso: Optional[float] = None
-    valor: Optional[float] = None
-
-
-class SeguimientoBase(BaseModel):
-    id_entrega: int
-    estado: EstadoEntrega
-    comentario: Optional[str] = None
-
-
-# ============================================
-# 2. MODELOS COMPLETOS PARA RESPUESTA
-# ============================================
-
 class Cliente(ClienteBase):
     id_cliente: int
-    class Config:
-        from_attributes = True
-
-
-class Conductor(ConductorBase):
-    id_conductor: int
-    class Config:
-        from_attributes = True
-
-
-class Vehiculo(VehiculoBase):
-    id_vehiculo: int
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================
-# RELACIONES PARA RUTA
-# ============================================
-
-class RutaConductor(BaseModel):
-    id_conductor: int
-    nombre: str
-    class Config:
-        from_attributes = True
-
-
-class RutaVehiculo(BaseModel):
-    id_vehiculo: int
-    marca: str
-    modelo: str
-    class Config:
-        from_attributes = True
-
-
-class Ruta(BaseModel):
-    id_ruta: int
-    nombre_ruta: str
-    fecha: date
-
-    conductor: Optional[RutaConductor]
-    vehiculo: Optional[RutaVehiculo]
-
-    class Config:
-        from_attributes = True
-
-
-# ============================================
-# ENTREGAS
-# ============================================
-
-class Entrega(EntregaBase):
-    id_entrega: int
-    class Config:
-        from_attributes = True
-
-
-class Paquete(PaqueteBase):
-    id_paquete: int
-    class Config:
-        from_attributes = True
-
-
-class Seguimiento(SeguimientoBase):
-    id_seguimiento: int
-    fecha: datetime
-    class Config:
-        from_attributes = True
-
-
-# ============================================
-# 3. OPTIMIZACIÓN DE RUTAS
-# ============================================
-
-class ResultadoRutaOptimizada(BaseModel):
-    nombre: str
-    direccion: str
-    latitud: Optional[float] = None
-    longitud: Optional[float] = None
-    distancia_km: Optional[float] = None
-    duracion_min: Optional[float] = None
-
-    class Config:
-        from_attributes = True
-
-
-class ListaClientesOptimizar(BaseModel):
-    cliente_ids: List[int]
-
-
-# ============================================
-# 4. USUARIOS Y LOGIN
+# USUARIOS
 # ============================================
 
 class UsuarioBase(BaseModel):
     nombre: str
     correo: EmailStr
-    rol: RolUsuario = RolUsuario.repartidor
+    rol: RolUsuario
     activo: bool = True
 
 
@@ -195,18 +62,115 @@ class Usuario(BaseModel):
     activo: bool
     creado_en: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
-class CambiarPassword(BaseModel):
-    password_actual: str
-    password_nueva: str
-    confirmar_nueva: str
+class LoginData(BaseModel):
+    correo: str
+    password: str
 
 
 # ============================================
-# 5. EVIDENCIAS
+# VEHÍCULOS
+# ============================================
+
+class VehiculoBase(BaseModel):
+    marca: str
+    modelo: str
+    placas: str
+    capacidad: int
+
+
+class Vehiculo(VehiculoBase):
+    id_vehiculo: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ============================================
+# RUTAS
+# ============================================
+
+class RutaBase(BaseModel):
+    nombre_ruta: str
+    id_repartidor: int
+    id_vehiculo: Optional[int]
+    fecha: date
+    id_creador: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RutaCreate(RutaBase):
+    pass
+
+
+class Ruta(BaseModel):
+    id_ruta: int
+    nombre_ruta: str
+    id_repartidor: int
+    id_vehiculo: Optional[int]
+    fecha: date
+    id_creador: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RutaCreateResponse(Ruta):
+    pass
+
+
+# ============================================
+# ENTREGAS
+# ============================================
+
+class EntregaBase(BaseModel):
+    id_ruta: int
+    id_cliente: int
+    estado: Optional[EstadoEntrega] = EstadoEntrega.pendiente
+    fecha_entrega: date
+    hora_entrega: time
+    observaciones: Optional[str] = None
+
+
+class Entrega(EntregaBase):
+    id_entrega: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ============================================
+# PAQUETES
+# ============================================
+
+class PaqueteBase(BaseModel):
+    id_entrega: int
+    descripcion: Optional[str] = None
+    peso: Optional[float] = None
+    valor: Optional[float] = None
+
+
+class Paquete(PaqueteBase):
+    id_paquete: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ============================================
+# SEGUIMIENTO
+# ============================================
+
+class SeguimientoBase(BaseModel):
+    id_entrega: int
+    estado: EstadoEntrega
+    comentario: Optional[str] = None
+
+
+class Seguimiento(SeguimientoBase):
+    id_seguimiento: int
+    fecha: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ============================================
+# EVIDENCIAS
 # ============================================
 
 class EvidenciaBase(BaseModel):
@@ -218,15 +182,33 @@ class EvidenciaBase(BaseModel):
 class Evidencia(EvidenciaBase):
     id_evidencia: int
     fecha_subida: datetime
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================
-# 6. CREAR RUTA DESDE FRONTEND
+# OPTIMIZACIÓN
 # ============================================
 
-class RutaCreate(BaseModel):
-    nombre_ruta: str
-    id_conductor: int
-    id_vehiculo: int
+class ResultadoRutaOptimizada(BaseModel):
+    nombre: str
+    direccion: str
+    latitud: Optional[float]
+    longitud: Optional[float]
+    distancia_km: Optional[float]
+    duracion_min: Optional[float]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ListaClientesOptimizar(BaseModel):
+    cliente_ids: List[int]
+
+
+# ============================================
+# CAMBIO PASSWORD
+# ============================================
+
+class CambiarPassword(BaseModel):
+    password_actual: str
+    password_nueva: str
+    confirmar_nueva: str

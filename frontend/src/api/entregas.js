@@ -40,3 +40,11 @@ export async function deleteEntrega(id_entrega) {
   const res = await api.delete(`/entregas/${id_entrega}`);
   return res.data;
 }
+
+
+// ... funciones que ya tengas ...
+
+export async function getEntregasPorRuta(id_ruta) {
+  const res = await api.get(`/entregas/por-ruta/${id_ruta}`);
+  return res.data;
+}

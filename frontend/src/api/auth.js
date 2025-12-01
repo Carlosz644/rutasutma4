@@ -1,26 +1,17 @@
-// frontend/src/api/auth.js
+import axios from "axios";
 
 export async function login(correo, password) {
-  console.log("📡 Enviando login a backend:", correo, password);
-
-  const response = await fetch("http://127.0.0.1:8000/login/", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  try {
+    const response = await axios.post("http://127.0.0.1:8000/login/", {
       correo: correo,
       password: password
-    }),
-  });
+    });
 
-  console.log("📡 Status recibido del backend:", response.status);
+    console.log("📡 Status recibido del backend:", response.status);
+    return response.data;
 
-  if (!response.ok) {
-    const text = await response.text();
-    console.error("❌ Respuesta con error:", text);
+  } catch (error) {
+    console.error("❌ Error en login:", error.response?.data || error.message);
     throw new Error("Credenciales inválidas");
   }
-
-  return await response.json();
 }

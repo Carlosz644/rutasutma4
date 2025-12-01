@@ -10,7 +10,7 @@ import Orders from './components/Orders';
 import AddOrder from './components/AddOrder';
 
 import Clientes from './components/Clientes';
-import Conductores from "./components/Conductores";
+import Repartidores from "./components/Repartidores";
 import Vehiculos from "./components/Vehiculos";
 import Rutas from "./components/Rutas";
 
@@ -22,6 +22,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // Mantener sesión iniciada
   useEffect(() => {
     const storedUser = localStorage.getItem('currentUser');
     if (storedUser) {
@@ -37,8 +38,9 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    setUser(null);
+    if (user) localStorage.removeItem('token');
     localStorage.removeItem('currentUser');
+    setUser(null);
     setCurrentView('login');
   };
 
@@ -80,7 +82,9 @@ export default function App() {
           <h1 className="text-2xl">Pedidos Express</h1>
           <p className="text-sm text-gray-400 mt-1">{user.name}</p>
           <p className="text-xs text-gray-500">
-            {user.role === 'admin' ? 'Administrador' : 'Usuario'}
+            {user.role === 'admin' || user.role === 'super_admin'
+              ? 'Administrador'
+              : 'Repartidor'}
           </p>
         </div>
 
@@ -97,18 +101,20 @@ export default function App() {
             <span>Pedidos</span>
           </button>
 
-          {/* Agregar pedido */}
-          <button
-            onClick={() => setCurrentView('add-order')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-2 ${
-              currentView === 'add-order' ? 'bg-white text-black' : 'hover:bg-gray-900'
-            }`}
-          >
-            <Package className="w-5 h-5" />
-            <span>Agregar Pedido</span>
-          </button>
+          {/* Agregar pedido — SOLO ADMIN */}
+          {(user.role === 'admin' || user.role === 'super_admin') && (
+            <button
+              onClick={() => setCurrentView('add-order')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-2 ${
+                currentView === 'add-order' ? 'bg-white text-black' : 'hover:bg-gray-900'
+              }`}
+            >
+              <Package className="w-5 h-5" />
+              <span>Agregar Pedido</span>
+            </button>
+          )}
 
-          {/* Buscar dirección */}
+          {/* Buscar dirección — TODOS */}
           <button
             onClick={() => setCurrentView('address-search')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-2 ${
@@ -122,7 +128,11 @@ export default function App() {
           {/* Perfil */}
           <button
             onClick={() =>
-              setCurrentView(user.role === 'admin' ? 'admin-profile' : 'user-profile')
+              setCurrentView(
+                user.role === 'admin' || user.role === 'super_admin'
+                  ? 'admin-profile'
+                  : 'user-profile'
+              )
             }
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-2 ${
               currentView === 'user-profile' || currentView === 'admin-profile'
@@ -134,40 +144,46 @@ export default function App() {
             <span>Mi Perfil</span>
           </button>
 
-          {/* Clientes */}
-          <button
-            onClick={() => setCurrentView('clientes')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-2 ${
-              currentView === 'clientes' ? 'bg-white text-black' : 'hover:bg-gray-900'
-            }`}
-          >
-            <User className="w-5 h-5" />
-            <span>Clientes</span>
-          </button>
+          {/* SOLO ADMIN: Clientes */}
+          {(user.role === "admin" || user.role === "super_admin") && (
+            <button
+              onClick={() => setCurrentView('clientes')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-2 ${
+                currentView === 'clientes' ? 'bg-white text-black' : 'hover:bg-gray-900'
+              }`}
+            >
+              <User className="w-5 h-5" />
+              <span>Clientes</span>
+            </button>
+          )}
 
-          {/* Conductores */}
-          <button
-            onClick={() => setCurrentView('conductores')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-2 ${
-              currentView === 'conductores' ? 'bg-white text-black' : 'hover:bg-gray-900'
-            }`}
-          >
-            <User className="w-5 h-5" />
-            <span>Conductores</span>
-          </button>
+          {/* SOLO ADMIN: Repartidores */}
+          {(user.role === "admin" || user.role === "super_admin") && (
+            <button
+              onClick={() => setCurrentView('repartidores')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-2 ${
+                currentView === 'repartidores' ? 'bg-white text-black' : 'hover:bg-gray-900'
+              }`}
+            >
+              <User className="w-5 h-5" />
+              <span>Repartidores</span>
+            </button>
+          )}
 
-          {/* Vehículos */}
-          <button
-            onClick={() => setCurrentView('vehiculos')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-2 ${
-              currentView === 'vehiculos' ? 'bg-white text-black' : 'hover:bg-gray-900'
-            }`}
-          >
-            <Package className="w-5 h-5" />
-            <span>Vehículos</span>
-          </button>
+          {/* SOLO ADMIN: Vehículos */}
+          {(user.role === "admin" || user.role === "super_admin") && (
+            <button
+              onClick={() => setCurrentView('vehiculos')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-2 ${
+                currentView === 'vehiculos' ? 'bg-white text-black' : 'hover:bg-gray-900'
+              }`}
+            >
+              <Package className="w-5 h-5" />
+              <span>Vehículos</span>
+            </button>
+          )}
 
-          {/* Rutas */}
+          {/* Rutas — TODOS */}
           <button
             onClick={() => setCurrentView('rutas')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mt-2 ${
@@ -193,28 +209,6 @@ export default function App() {
       </aside>
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 flex flex-col">
-        <header className="bg-black text-white px-6 py-4 flex items-center gap-4 border-b border-gray-800">
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 hover:bg-gray-900 rounded-lg transition-colors"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
-
-          <h2 className="text-xl">
-            {currentView === 'orders' && 'Mis Pedidos'}
-            {currentView === 'add-order' && 'Agregar Pedido'}
-            {currentView === 'address-search' && 'Buscar Dirección'}
-            {currentView === 'user-profile' && 'Mi Perfil'}
-            {currentView === 'admin-profile' && 'Panel de Administrador'}
-            {currentView === 'clientes' && 'Clientes'}
-            {currentView === 'conductores' && 'Conductores'}
-            {currentView === 'vehiculos' && 'Vehículos'}
-            {currentView === 'rutas' && 'Rutas'}
-          </h2>
-        </header>
-
         <main className="flex-1 overflow-auto bg-gray-50">
           {currentView === 'orders' && <Orders userRole={user.role} />}
           {currentView === 'add-order' && <AddOrder userId={user.id} userRole={user.role} />}
@@ -222,12 +216,13 @@ export default function App() {
           {currentView === 'user-profile' && <UserProfile user={user} />}
           {currentView === 'admin-profile' && <AdminProfile user={user} />}
           {currentView === 'clientes' && <Clientes />}
-          {currentView === 'conductores' && <Conductores />}
+          {currentView === 'repartidores' && <Repartidores />}
           {currentView === 'vehiculos' && <Vehiculos />}
-          {currentView === 'rutas' && <Rutas />}
+          {currentView === 'rutas' && (
+  <Rutas userId={user.id} userRole={user.role} />
+)}
+
         </main>
       </div>
-
-    </div>
   );
 }

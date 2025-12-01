@@ -1,66 +1,55 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session, joinedload
-from typing import List
-
+from sqlalchemy.orm import Session
 from database import get_db
-import crud
-import schemas
 import models
-from pydantic import BaseModel
+import schemas
 
 router = APIRouter(prefix="/rutas", tags=["Rutas"])
 
-
-# ======================================
-# GET – LISTAR RUTAS (conductor + vehículo)
-# ======================================
-@router.get("/", response_model=List[schemas.Ruta])
+# =========================================
+# GET: Listar rutas con repartidor y vehículo
+# =========================================
+@router.get("/", response_model=list[schemas.Ruta])
 def listar_rutas(db: Session = Depends(get_db)):
-    rutas = db.query(models.Ruta)\
-        .options(
-            joinedload(models.Ruta.conductor),
-            joinedload(models.Ruta.vehiculo)
-        ).all()
-
+    rutas = db.query(models.Ruta).all()
     return rutas
 
-
-# ======================================
-# POST – CREAR RUTA
-# ======================================
-@router.post("/", response_model=schemas.Ruta)
-def crear_ruta(ruta: schemas.RutaCreate, db: Session = Depends(get_db)):
-    return crud.crear_ruta(db, ruta)
-
-
-# ======================================
-# PUT – ACTUALIZAR RUTA
-# ======================================
-@router.put("/{id_ruta}", response_model=schemas.Ruta)
-def actualizar_ruta(id_ruta: int, ruta: schemas.RutaBase, db: Session = Depends(get_db)):
-    actualizada = crud.update_ruta(db, id_ruta, ruta)
-    if not actualizada:
+# =========================================
+# GET: Ruta por ID
+# =========================================
+@router.get("/{id_ruta}", response_model=schemas.Ruta)
+def obtener_ruta(id_ruta: int, db: Session = Depends(get_db)):
+    ruta = db.query(models.Ruta).filter(models.Ruta.id_ruta == id_ruta).first()
+    if not ruta:
         raise HTTPException(status_code=404, detail="Ruta no encontrada")
-    return actualizada
+    return ruta
 
+# =========================================
+# POST: Crear ruta
+# =========================================
+@router.post("/", response_model=schemas.RutaCreateResponse)
+def crear_ruta(data: schemas.RutaCreate, db: Session = Depends(get_db)):
+    nueva = models.Ruta(
+        nombre_ruta=data.nombre_ruta,
+        id_repartidor=data.id_repartidor,
+        id_vehiculo=data.id_vehiculo,
+        fecha=data.fecha,
+        id_creador=data.id_creador,
+    )
+    db.add(nueva)
+    db.commit()
+    db.refresh(nueva)
+    return nueva
 
-# ======================================
-# DELETE – ELIMINAR RUTA
-# ======================================
-@router.delete("/{id_ruta}", response_model=schemas.Ruta)
+# =========================================
+# DELETE: Eliminar ruta
+# =========================================
+@router.delete("/{id_ruta}")
 def eliminar_ruta(id_ruta: int, db: Session = Depends(get_db)):
-    eliminada = crud.delete_ruta(db, id_ruta)
-    if not eliminada:
+    ruta = db.query(models.Ruta).filter(models.Ruta.id_ruta == id_ruta).first()
+    if not ruta:
         raise HTTPException(status_code=404, detail="Ruta no encontrada")
-    return eliminada
 
-
-# ======================================
-# POST – OPTIMIZAR RUTA
-# ======================================
-class ClienteIDs(BaseModel):
-    cliente_ids: List[int]
-
-@router.post("/optimizar", response_model=List[schemas.ResultadoRutaOptimizada])
-def optimizar_ruta(body: ClienteIDs, db: Session = Depends(get_db)):
-    return crud.mock_optimize_route(db, body.cliente_ids)
+    db.delete(ruta)
+    db.commit()
+    return {"message": "Ruta eliminada correctamente"}

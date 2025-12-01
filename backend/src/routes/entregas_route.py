@@ -42,3 +42,18 @@ def eliminar_entrega(id_entrega: int, db: Session = Depends(get_db)):
     if not eliminada:
         raise HTTPException(status_code=404, detail="Entrega no encontrada")
     return eliminada
+
+# NUEVO: Entregas de una ruta (con cliente)
+# =========================================
+@router.get("/por-ruta/{id_ruta}", response_model=List[schemas.Entrega])
+def entregas_por_ruta(id_ruta: int, db: Session = Depends(get_db)):
+    entregas = (
+        db.query(models.Entrega)
+        .filter(models.Entrega.id_ruta == id_ruta)
+        .all()
+    )
+    if not entregas:
+        # No es error grave, solo devolvemos lista vacía
+        return []
+
+    return entregas

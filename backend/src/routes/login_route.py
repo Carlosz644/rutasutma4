@@ -1,36 +1,36 @@
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
-from auth import verify_password, create_access_token
 from database import get_db
+import schemas
 import crud
+from auth import verify_password, create_access_token
 
 router = APIRouter(prefix="/login", tags=["Login"])
 
-class LoginRequest(BaseModel):
-    correo: str
-    password: str
-
 @router.post("/")
-def login(data: LoginRequest, db: Session = Depends(get_db)):
-    # Buscar usuario por correo
-   user = crud.get_usuario_por_correo(db, data.correo)
-   if not user:
-        raise HTTPException(status_code=400, detail="Usuario no encontrado")
+def login(data: schemas.LoginData, db: Session = Depends(get_db)):
 
-    # Verificar contraseña
-   if not verify_password(data.password, user.password_hash):
-        raise HTTPException(status_code=400, detail="Contraseña incorrecta")
+    usuario = crud.get_usuario_por_correo(db, data.correo)
 
-    # Crear token
-   token = create_access_token({"id_usuario": user.id_usuario})
 
-   return {
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Usuario no encontrado")
+
+    if not verify_password(data.password, usuario.password_hash):
+        raise HTTPException(status_code=401, detail="Contraseña incorrecta")
+
+    token = create_access_token({
+        "sub": usuario.correo,
+        "id": usuario.id_usuario,
+        "rol": usuario.rol
+    })
+
+    return {
         "access_token": token,
         "usuario": {
-            "id": user.id_usuario,
-            "nombre": user.nombre,
-            "correo": user.correo,
-            "rol": user.rol
+            "id": usuario.id_usuario,
+            "nombre": usuario.nombre,
+            "correo": usuario.correo,
+            "rol": usuario.rol
         }
     }

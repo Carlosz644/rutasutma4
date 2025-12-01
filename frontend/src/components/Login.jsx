@@ -9,34 +9,32 @@ export function Login({ onLogin, onRegister, onForgotPassword }) {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  e.preventDefault();
+  setError("");
+  setLoading(true);
 
-    try {
-      // 🔥 LOGIN REAL CONTRA EL BACKEND
-      const result = await loginAPI(email, password);
+  try {
+    const result = await loginAPI(email, password);
 
-      // result = {
-      //   access_token: "...",
-      //   usuario: { id, rol, nombre, ... }
-      // }
+    // 🔥 GUARDAR TOKEN AQUI
+    localStorage.setItem("token", result.access_token);
 
-      // Llamar al padre
-      onLogin({
-        id: result.usuario.id,
-        email: email,
-        name: result.usuario.nombre,
-        role: result.usuario.rol,
-      });
+    // 🔥 GUARDAR DATOS DEL USUARIO
+    onLogin({
+      id: result.usuario.id,
+      email: email,
+      name: result.usuario.nombre,
+      role: result.usuario.rol,
+    });
 
-    } catch (err) {
-      console.error(err);
-      setError("Credenciales incorrectas o servidor no disponible.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  } catch (err) {
+    console.error(err);
+    setError("Credenciales incorrectas o servidor no disponible.");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="w-full max-w-md">

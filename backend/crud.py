@@ -75,19 +75,74 @@ def create_cliente(db: Session, cliente: schemas.ClienteBase):
 # =======================================================
 # CRUD CONDUCTORES
 # =======================================================
+# from sqlalchemy.orm import Session
+import models
+import schemas
+from auth import hash_password
+from models import RolUsuario
 
-def get_conductores(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Conductor).offset(skip).limit(limit).all()
 
-def get_conductor(db: Session, id_conductor: int):
-    return db.query(models.Conductor).filter(models.Conductor.id_conductor == id_conductor).first()
+# =======================================================
+# CRUD REPARTIDORES (Repartidor = Usuario con rol)
+## =======================================================
+# CRUD REPARTIDORES (USUARIOS CON ROL = repartidor)
+# =======================================================
 
-def create_conductor(db: Session, conductor: schemas.ConductorBase):
-    nuevo = models.Conductor(**conductor.dict())
+# ============================================================
+# REPARTIDORES
+# ============================================================
+
+def get_repartidores(db: Session):
+    return db.query(models.Usuario).filter(models.Usuario.rol == "repartidor").all()
+
+
+def create_repartidor(db: Session, data: schemas.RepartidorCreate):
+    password_hash = hash_password(data.password)
+
+    nuevo = models.Usuario(
+        nombre=data.nombre,
+        correo=data.correo,
+        password_hash=password_hash,
+        rol="repartidor",
+        activo=1
+    )
+
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)
     return nuevo
+
+
+def update_repartidor(db: Session, id_repartidor: int, data: schemas.RepartidorBase):
+    repartidor = db.query(models.Usuario).filter(
+        models.Usuario.id_usuario == id_repartidor,
+        models.Usuario.rol == "repartidor"
+    ).first()
+
+    if not repartidor:
+        raise HTTPException(status_code=404, detail="Repartidor no encontrado")
+
+    repartidor.nombre = data.nombre
+    repartidor.correo = data.correo
+
+    db.commit()
+    db.refresh(repartidor)
+    return repartidor
+
+
+def delete_repartidor(db: Session, id_repartidor: int):
+    repartidor = db.query(models.Usuario).filter(
+        models.Usuario.id_usuario == id_repartidor,
+        models.Usuario.rol == "repartidor"
+    ).first()
+
+    if not repartidor:
+        raise HTTPException(status_code=404, detail="Repartidor no encontrado")
+
+    db.delete(repartidor)
+    db.commit()
+    return repartidor
+
 
 
 # =======================================================
@@ -112,16 +167,10 @@ def create_vehiculo(db: Session, vehiculo: schemas.VehiculoBase):
 # CRUD RUTAS
 # =======================================================
 
-def get_rutas(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Ruta).offset(skip).limit(limit).all()
-
-def get_ruta(db: Session, id_ruta: int):
-    return db.query(models.Ruta).filter(models.Ruta.id_ruta == id_ruta).first()
-
 def crear_ruta(db: Session, ruta: schemas.RutaCreate):
     nueva = models.Ruta(
         nombre_ruta=ruta.nombre_ruta,
-        id_conductor=ruta.id_conductor,
+        id_repartidor=ruta.id_repartidor,
         id_vehiculo=ruta.id_vehiculo,
         fecha=datetime.now().date(),
     )
@@ -130,13 +179,14 @@ def crear_ruta(db: Session, ruta: schemas.RutaCreate):
     db.refresh(nueva)
     return nueva
 
+
 def update_ruta(db: Session, id_ruta: int, ruta_data: schemas.RutaBase):
     ruta = db.query(models.Ruta).filter(models.Ruta.id_ruta == id_ruta).first()
     if not ruta:
         return None
 
     ruta.nombre_ruta = ruta_data.nombre_ruta
-    ruta.id_conductor = ruta_data.id_conductor
+    ruta.id_repartidor = ruta_data.id_repartidor
     ruta.id_vehiculo = ruta_data.id_vehiculo
     ruta.fecha = ruta_data.fecha
 
@@ -144,15 +194,6 @@ def update_ruta(db: Session, id_ruta: int, ruta_data: schemas.RutaBase):
     db.refresh(ruta)
     return ruta
 
-
-def delete_ruta(db: Session, id_ruta: int):
-    ruta = db.query(models.Ruta).filter(models.Ruta.id_ruta == id_ruta).first()
-    if not ruta:
-        return None
-
-    db.delete(ruta)
-    db.commit()
-    return ruta
 
 
 
@@ -188,6 +229,18 @@ def get_seguimientos(db: Session, skip: int = 0, limit: int = 100):
 
 def get_seguimiento(db: Session, id_seguimiento: int):
     return db.query(models.Seguimiento).filter(models.Seguimiento.id_seguimiento == id_seguimiento).first()
+
+# ============================
+# SEGUIMIENTO POR ENTREGA
+# ============================
+
+def get_seguimientos_por_entrega(db: Session, id_entrega: int):
+    return (
+        db.query(models.Seguimiento)
+        .filter(models.Seguimiento.id_entrega == id_entrega)
+        .order_by(models.Seguimiento.fecha.asc())
+        .all()
+    )
 
 
 # =======================================================
