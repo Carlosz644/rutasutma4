@@ -70,6 +70,29 @@ class LoginData(BaseModel):
     password: str
 
 
+
+    #Repartidor
+
+class RepartidorBase(BaseModel):
+    nombre: str
+    correo: str
+
+    class Config:
+        from_attributes = True
+
+class RepartidorCreate(RepartidorBase):
+    password: str
+
+
+class Repartidor(RepartidorBase):
+    id_usuario: int
+    rol: str = "repartidor"
+
+    class Config:
+        from_attributes = True
+
+
+
 # ============================================
 # VEHÍCULOS
 # ============================================
